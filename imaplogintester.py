@@ -7,9 +7,11 @@
 #   example1@gmail.com:myP4ssw0rd
 #   example2@yahoo.com:@n0th3rp4$$
 #   example3@hotmail.com:h3ll0th3r3!
+#   [...]
 #
 # and tries to determine if the given credentials are valid by trying to
-# connect and log into the respective IMAP servers.
+# connect to and log into the respective IMAP servers (options are defined in a
+# config file).
 #
 # Coded by: Riccardo Mollo (riccardomollo84@gmail.com)
 #
@@ -21,6 +23,7 @@
 
 import configparser
 import imaplib
+import os
 import pprint
 import re
 import signal
@@ -33,14 +36,14 @@ def signal_handler(s, frame):
         print('Goodbye!')
         sys.exit()
 
-def green(str):
-    return colored(str, 'green')
+def green(text):
+    return colored(text, 'green')
 
-def red(str):
-    return colored(str, 'red')
+def red(text):
+    return colored(text, 'red')
 
-def yellow(str):
-    return colored(str, 'yellow')
+def yellow(text):
+    return colored(text, 'yellow')
 
 def warning(message):
     print(u'\u26A0', message)
@@ -51,8 +54,8 @@ def error(message):
 def email_is_valid(email):
     if (re.match('^[a-zA-Z0-9_+&*-]+(?:\\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,7}$', email) != None):
         return True
-
-    return False
+    else:
+        return False
 
 def result(email, password, result):
     e = yellow(email)
@@ -73,6 +76,7 @@ def test_login(account, domain, password, imap, port, ssl):
 
         if connection:
             connection.logout()
+
             return True
         else:
             return False
@@ -80,10 +84,19 @@ def test_login(account, domain, password, imap, port, ssl):
         pass
 
 def main(argv):
-    config_file = 'domains.ini'
+    emails_file = sys.argv[1]
+    config_file = 'config.ini'
+
+    if not os.path.isfile(emails_file):
+        print('Error! File "{}" not found or not readable.'.format(emails_file))
+        sys.exit(1)
+
+    if not os.path.isfile(config_file):
+        print('Error! File "{}" not found or not readable.'.format(config_file))
+        sys.exit(1)
+
     config = configparser.ConfigParser()
     config.read(config_file)
-    mail_re = '(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)'
 
     with open(sys.argv[1], 'r') as f:
         for row in f:
@@ -100,8 +113,9 @@ def main(argv):
                     imap = config[domain]['imap']
                     port = config[domain]['port']
                     ssl = config[domain]['ssl']
-                    logged = test_login(account, domain, password, imap, port, ssl)
-                    result(email, password, logged)
+                    loggedin = test_login(account, domain, password, imap, port, ssl)
+
+                    result(email, password, loggedin)
                 else:
                     warning('Missing config section for domain: {}'.format(yellow(domain)))
             else:
