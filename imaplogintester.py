@@ -65,11 +65,13 @@ def result(email, password, result):
     print("E-Mail: {} | Password: {} | Login: {}".format(e, p, r))
 
 def test_login(account, domain, password, imap, port, ssl):
+    TIMEOUT = 3
+
     try:
         if eval(ssl):
-            connection = imaplib.IMAP4_SSL(imap, port = port, timeout = 5)
+            connection = imaplib.IMAP4_SSL(imap, port = port, timeout = TIMEOUT)
         else:
-            connection = imaplib.IMAP4(imap, port = port, timeout = 5)
+            connection = imaplib.IMAP4(imap, port = port, timeout = TIMEOUT)
 
         username = account + '@' + domain
         connection.login(username, password)
