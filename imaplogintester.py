@@ -19,7 +19,9 @@
 #### TODO:
 #### - checks on filename at command line
 #### - checks on 'domains.ini' file
-#### - a lot of other stuff
+#### - save successes to file (choose output file)
+#### - show only successes (no failures)
+#### - set sleep time between tests
 
 import configparser
 import imaplib
@@ -57,6 +59,11 @@ def email_is_valid(email):
     else:
         return False
 
+def check_for_file(file):
+    if not os.path.isfile(file):
+        print('Error! File "{}" not found or not readable.'.format(file))
+        sys.exit(1)
+
 def result(email, password, result):
     e = yellow(email)
     p = yellow(password)
@@ -89,39 +96,37 @@ def main(argv):
     emails_file = sys.argv[1]
     config_file = 'config.ini'
 
-    if not os.path.isfile(emails_file):
-        print('Error! File "{}" not found or not readable.'.format(emails_file))
-        sys.exit(1)
-
-    if not os.path.isfile(config_file):
-        print('Error! File "{}" not found or not readable.'.format(config_file))
-        sys.exit(1)
+    check_for_file(emails_file)
+    check_for_file(config_file)
 
     config = configparser.ConfigParser()
     config.read(config_file)
 
     with open(sys.argv[1], 'r') as f:
         for row in f:
-            row_tmp = row.split(':', 1)
-            email = row_tmp[0].lower()
-            password = row_tmp[1].strip()
+            try:
+                row_tmp = row.split(':', 1)
+                email = row_tmp[0].lower()
+                password = row_tmp[1].strip()
 
-            if email_is_valid(email):
-                email_tmp = email.split('@', 1)
-                account = email_tmp[0]
-                domain = email_tmp[1]
+                if email_is_valid(email):
+                    email_tmp = email.split('@', 1)
+                    account = email_tmp[0]
+                    domain = email_tmp[1]
 
-                if domain in config:
-                    imap = config[domain]['imap']
-                    port = config[domain]['port']
-                    ssl = config[domain]['ssl']
-                    loggedin = test_login(account, domain, password, imap, port, ssl)
+                    if domain in config:
+                        imap = config[domain]['imap']
+                        port = config[domain]['port']
+                        ssl = config[domain]['ssl']
+                        loggedin = test_login(account, domain, password, imap, port, ssl)
 
-                    result(email, password, loggedin)
+                        result(email, password, loggedin)
+                    else:
+                        warning('Missing config section for domain: {}'.format(yellow(domain)))
                 else:
-                    warning('Missing config section for domain: {}'.format(yellow(domain)))
-            else:
-                error('Invalid e-mail: {}'.format(yellow(email)))
+                    error('Invalid e-mail: {}'.format(yellow(email)))
+            except IndexError as indexerror:
+                error('Wrong format for row: {}'.format(yellow(row.strip())))
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
