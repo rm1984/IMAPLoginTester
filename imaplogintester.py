@@ -17,12 +17,10 @@
 #
 
 #### TODO:
-#### - checks on filename at command line
 #### - checks on 'domains.ini' file
-#### - save successes to file (choose output file)
-#### - show only successes (no failures)
 #### - set sleep time between tests
 
+import argparse
 import configparser
 import imaplib
 import os
@@ -64,12 +62,15 @@ def check_for_file(file):
         print('Error! File "{}" not found or not readable.'.format(file))
         sys.exit(1)
 
-def result(email, password, result):
+def result(email, password, result, output_file):
     e = yellow(email)
     p = yellow(password)
     r = green('SUCCEEDED') if result else red('FAILED')
 
     print("E-Mail: {} | Password: {} | Login: {}".format(e, p, r))
+
+    if result and output_file is not None:
+        print(email + ':' + password, file = output_file)
 
 def test_login(account, domain, password, imap, port, ssl):
     TIMEOUT = 3
@@ -93,8 +94,17 @@ def test_login(account, domain, password, imap, port, ssl):
         pass
 
 def main(argv):
-    emails_file = sys.argv[1]
+    parser = argparse.ArgumentParser(prog = 'imaplogintester.py')
+    parser.add_argument('-i', '--input', help = 'input file with e-mails and passwords', required = True)
+    parser.add_argument('-o', '--output', help = 'save successes to output file', required = False)
+    parser.add_argument('-s', '--show-successes', help = 'show successes only (no failures)', required = False, action='store_true', default = None)
+    parser.add_argument('-t', '--sleep-time', help = 'set sleep time between tests (in seconds)', required = False)
+    args = parser.parse_args()
+    emails_file = args.input
     config_file = 'config.ini'
+    output_file = args.output
+    sleep_time = args.sleep_time
+    show_successes = args.show_successes
 
     check_for_file(emails_file)
     check_for_file(config_file)
@@ -102,7 +112,18 @@ def main(argv):
     config = configparser.ConfigParser()
     config.read(config_file)
 
-    with open(sys.argv[1], 'r') as f:
+    count_all = 0
+    count_ok = 0
+
+    try:
+        if (output_file is not None):
+            of = open(output_file, 'a')
+    except Exception as e:
+        error('Can not write output to file: {}'.format(output_file))
+        output_file = None
+        of = None
+
+    with open(emails_file, 'r') as f:
         for row in f:
             try:
                 row_tmp = row.split(':', 1)
@@ -120,7 +141,16 @@ def main(argv):
                         ssl = config[domain]['ssl']
                         loggedin = test_login(account, domain, password, imap, port, ssl)
 
-                        result(email, password, loggedin)
+                        if (show_successes):
+                            if (loggedin):
+                                result(email, password, loggedin, of)
+                        else:
+                            result(email, password, loggedin, of)
+
+                        count_all += + 1
+
+                        if loggedin:
+                            count_ok += 1
                     else:
                         warning('Missing config section for domain: {}'.format(yellow(domain)))
                 else:
@@ -128,10 +158,11 @@ def main(argv):
             except IndexError as indexerror:
                 error('Wrong format for row: {}'.format(yellow(row.strip())))
 
+    print('Working logins: ' + green(count_ok) + '/' + str(count_all))
+
+    if (output_file is not None):
+        of.close()
+
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
-
-    if (len(sys.argv) != 2):
-        print('Usage: ./imaplogintester.py <file.txt>')
-    else:
-        main(sys.argv[1:])
+    main(sys.argv[1:])
