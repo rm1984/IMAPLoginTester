@@ -18,7 +18,7 @@
 
 #### TODO:
 #### - checks on 'domains.ini' file
-#### - set sleep time between tests
+#### - introduce multithreading
 
 import argparse
 import configparser
@@ -28,6 +28,7 @@ import pprint
 import re
 import signal
 import sys
+import time
 from termcolor import colored
 
 def signal_handler(s, frame):
@@ -97,13 +98,15 @@ def main(argv):
     parser = argparse.ArgumentParser(prog = 'imaplogintester.py')
     parser.add_argument('-i', '--input', help = 'input file with e-mails and passwords', required = True)
     parser.add_argument('-o', '--output', help = 'save successes to output file', required = False)
-    parser.add_argument('-s', '--show-successes', help = 'show successes only (no failures)', required = False, action='store_true', default = None)
+    parser.add_argument('-s', '--show-successes', help = 'show successes only (no failures)', required = False, action = 'store_true', default = None)
     parser.add_argument('-t', '--sleep-time', help = 'set sleep time between tests (in seconds)', required = False)
     args = parser.parse_args()
+
     emails_file = args.input
-    config_file = 'config.ini'
+    config_file = 'domains.ini'
     output_file = args.output
-    sleep_time = args.sleep_time
+    of = None
+    sleep_time = args.sleep_time or 0
     show_successes = args.show_successes
 
     check_for_file(emails_file)
@@ -112,9 +115,6 @@ def main(argv):
     config = configparser.ConfigParser()
     config.read(config_file)
 
-    count_all = 0
-    count_ok = 0
-
     try:
         if (output_file is not None):
             of = open(output_file, 'a')
@@ -122,6 +122,9 @@ def main(argv):
         error('Can not write output to file: {}'.format(output_file))
         output_file = None
         of = None
+
+    count_all = 0
+    count_ok = 0
 
     with open(emails_file, 'r') as f:
         for row in f:
@@ -151,6 +154,8 @@ def main(argv):
 
                         if loggedin:
                             count_ok += 1
+
+                        time.sleep(int(sleep_time))
                     else:
                         warning('Missing config section for domain: {}'.format(yellow(domain)))
                 else:
@@ -160,7 +165,7 @@ def main(argv):
 
     print('Working logins: ' + green(count_ok) + '/' + str(count_all))
 
-    if (output_file is not None):
+    if (output_file is not None and of is not None):
         of.close()
 
 if __name__ == '__main__':
