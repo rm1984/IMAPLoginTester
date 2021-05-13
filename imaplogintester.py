@@ -73,14 +73,20 @@ def result(email, password, result, output_file):
     if result and output_file is not None:
         print(email + ':' + password, file = output_file)
 
-def test_login(account, domain, password, imap, port, ssl):
-    TIMEOUT = 3
+def test_login(account, domain, password, imap, port, ssl, timeout):
+    PYTHON_MIN_VER = sys.version_info[1]
 
     try:
         if eval(ssl):
-            connection = imaplib.IMAP4_SSL(imap, port = port, timeout = TIMEOUT)
+            if (PYTHON_MIN_VER) >= 9:
+                connection = imaplib.IMAP4_SSL(imap, port = port, timeout = timeout)
+            else:
+                connection = imaplib.IMAP4_SSL(imap, port = port)
         else:
-            connection = imaplib.IMAP4(imap, port = port, timeout = TIMEOUT)
+            if (PYTHON_MIN_VER) >= 9:
+                connection = imaplib.IMAP4(imap, port = port, timeout = timeout)
+            else:
+                connection = imaplib.IMAP4(imap, port = port)
 
         username = account + '@' + domain
         connection.login(username, password)
@@ -100,13 +106,14 @@ def main(argv):
     parser.add_argument('-o', '--output', help = 'save successes to output file', required = False)
     parser.add_argument('-s', '--show-successes', help = 'show successes only (no failures)', required = False, action = 'store_true', default = None)
     parser.add_argument('-t', '--sleep-time', help = 'set sleep time between tests (in seconds)', required = False)
+    parser.add_argument('-T', '--timeout', help = 'set login requests timeout (in seconds)', required = False)
     args = parser.parse_args()
 
     emails_file = args.input
     config_file = 'domains.ini'
     output_file = args.output
-    of = None
     sleep_time = args.sleep_time or 0
+    timeout = args.timeout or 3 # default value is 3 seconds
     show_successes = args.show_successes
 
     check_for_file(emails_file)
@@ -114,6 +121,8 @@ def main(argv):
 
     config = configparser.ConfigParser()
     config.read(config_file)
+
+    of = None
 
     try:
         if (output_file is not None):
@@ -142,7 +151,7 @@ def main(argv):
                         imap = config[domain]['imap']
                         port = config[domain]['port']
                         ssl = config[domain]['ssl']
-                        loggedin = test_login(account, domain, password, imap, port, ssl)
+                        loggedin = test_login(account, domain, password, imap, port, ssl, timeout)
 
                         if (show_successes):
                             if (loggedin):
