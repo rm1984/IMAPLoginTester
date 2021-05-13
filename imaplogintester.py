@@ -17,6 +17,7 @@
 #
 
 #### TODO:
+#### - implement SOCKS5 proxy support
 #### - checks on 'domains.ini' file
 #### - introduce multithreading
 
@@ -24,15 +25,15 @@ import argparse
 import configparser
 import imaplib
 import os
-import pprint
 import re
 import signal
 import sys
 import time
 from termcolor import colored
 
-def signal_handler(s, frame):
-    if s == 2: # SIGINT
+def signal_handler(sign, frame):
+    print(frame)
+    if sign == 2: # SIGINT
         print('You pressed Ctrl+C!')
         print('Goodbye!')
         sys.exit()
@@ -53,37 +54,47 @@ def error(message):
     print(u'\u274C', message)
 
 def email_is_valid(email):
-    if (re.match('^[a-zA-Z0-9_+&*-]+(?:\\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,7}$', email) != None):
-        return True
-    else:
-        return False
+    return re.match('^[a-zA-Z0-9_+&*-]+(?:\\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,7}$', email) is not None
 
 def check_for_file(file):
     if not os.path.isfile(file):
         print('Error! File "{}" not found or not readable.'.format(file))
         sys.exit(1)
 
-def result(email, password, result, output_file):
-    e = yellow(email)
-    p = yellow(password)
-    r = green('SUCCEEDED') if result else red('FAILED')
+def result(email, password, success, output_file):
+    eml = yellow(email)
+    pwd = yellow(password)
+    res = green('SUCCEEDED') if success else red('FAILED')
 
-    print("E-Mail: {} | Password: {} | Login: {}".format(e, p, r))
+    print("E-Mail: {} | Password: {} | Login: {}".format(eml, pwd, res))
 
     if result and output_file is not None:
         print(email + ':' + password, file = output_file)
 
+def split_host_port(hostport):
+    if hostport.find(':') == -1:
+        print('Error! SOCKS5_PROXY value must be in the "hostname:port" format.')
+        sys.exit(1)
+
+    hostport = hostport.rsplit(':', 1)
+
+    host = hostport[0]
+    port = int(hostport[1])
+
+    return (host, port)
+
 def test_login(account, domain, password, imap, port, ssl, timeout):
-    PYTHON_MIN_VER = sys.version_info[1]
+    python_min_ver = sys.version_info[1]
+    ret = False
 
     try:
-        if eval(ssl):
-            if (PYTHON_MIN_VER) >= 9:
+        if ssl == "True":
+            if (python_min_ver) >= 9:
                 connection = imaplib.IMAP4_SSL(imap, port = port, timeout = timeout)
             else:
                 connection = imaplib.IMAP4_SSL(imap, port = port)
         else:
-            if (PYTHON_MIN_VER) >= 9:
+            if (python_min_ver) >= 9:
                 connection = imaplib.IMAP4(imap, port = port, timeout = timeout)
             else:
                 connection = imaplib.IMAP4(imap, port = port)
@@ -93,28 +104,36 @@ def test_login(account, domain, password, imap, port, ssl, timeout):
 
         if connection:
             connection.logout()
+            ret = True
 
-            return True
-        else:
-            return False
-    except Exception as e:
-        pass
+        return ret
+    except Exception:
+        return ret
 
-def main(argv):
+def test_login_socks5_proxy(socks5_proxy, account, domain, password, imap, port, ssl, timeout):
+    (proxy_host, proxy_port) = split_host_port(socks5_proxy)
+
+    #TODO
+
+    return True
+
+def main():
     parser = argparse.ArgumentParser(prog = 'imaplogintester.py')
     parser.add_argument('-i', '--input', help = 'input file with e-mails and passwords', required = True)
     parser.add_argument('-o', '--output', help = 'save successes to output file', required = False)
     parser.add_argument('-s', '--show-successes', help = 'show successes only (no failures)', required = False, action = 'store_true', default = None)
     parser.add_argument('-t', '--sleep-time', help = 'set sleep time between tests (in seconds)', required = False)
     parser.add_argument('-T', '--timeout', help = 'set login requests timeout (in seconds)', required = False)
+    parser.add_argument('-P', '--socks5-proxy', help = 'use a SOCKS5 proxy (eg: "localhost:9050")', required = False)
     args = parser.parse_args()
 
+    config_file = os.path.abspath(os.path.dirname(sys.argv[0])) + os.path.sep + 'domains.ini'
     emails_file = args.input
-    config_file = 'domains.ini'
     output_file = args.output
-    sleep_time = args.sleep_time or 0
-    timeout = args.timeout or 3 # default value is 3 seconds
     show_successes = args.show_successes
+    sleep_time = args.sleep_time or 0 # default value is 0 seconds
+    timeout = args.timeout or 3 # default value is 3 seconds
+    socks5_proxy = args.socks5_proxy
 
     check_for_file(emails_file)
     check_for_file(config_file)
@@ -122,21 +141,21 @@ def main(argv):
     config = configparser.ConfigParser()
     config.read(config_file)
 
-    of = None
+    output_file_handle = None
 
     try:
-        if (output_file is not None):
-            of = open(output_file, 'a')
-    except Exception as e:
+        if output_file is not None:
+            output_file_handle = open(output_file, 'a')
+    except Exception:
         error('Can not write output to file: {}'.format(output_file))
         output_file = None
-        of = None
+        output_file_handle = None
 
     count_all = 0
     count_ok = 0
 
-    with open(emails_file, 'r') as f:
-        for row in f:
+    with open(emails_file, 'r') as emails_file_handle:
+        for row in emails_file_handle:
             try:
                 row_tmp = row.split(':', 1)
                 email = row_tmp[0].lower()
@@ -151,13 +170,17 @@ def main(argv):
                         imap = config[domain]['imap']
                         port = config[domain]['port']
                         ssl = config[domain]['ssl']
-                        loggedin = test_login(account, domain, password, imap, port, ssl, timeout)
 
-                        if (show_successes):
-                            if (loggedin):
-                                result(email, password, loggedin, of)
+                        if socks5_proxy:
+                            loggedin = test_login_socks5_proxy(socks5_proxy, account, domain, password, imap, port, ssl, timeout)
                         else:
-                            result(email, password, loggedin, of)
+                            loggedin = test_login(account, domain, password, imap, port, ssl, timeout)
+
+                        if show_successes:
+                            if loggedin:
+                                result(email, password, loggedin, output_file_handle)
+                        else:
+                            result(email, password, loggedin, output_file_handle)
 
                         count_all += + 1
 
@@ -169,14 +192,15 @@ def main(argv):
                         warning('Missing config section for domain: {}'.format(yellow(domain)))
                 else:
                     error('Invalid e-mail: {}'.format(yellow(email)))
-            except IndexError as indexerror:
+            except IndexError:
                 error('Wrong format for row: {}'.format(yellow(row.strip())))
 
     print('Working logins: ' + green(count_ok) + '/' + str(count_all))
 
-    if (output_file is not None and of is not None):
-        of.close()
+    if (output_file is not None and output_file_handle is not None):
+        output_file_handle.close()
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
-    main(sys.argv[1:])
+    main()
+
