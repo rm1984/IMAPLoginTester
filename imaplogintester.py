@@ -84,7 +84,7 @@ def split_host_port(hostport):
     host = hostport[0]
     port = int(hostport[1])
 
-    if not (validators.domain(host) or validators.ipv4(host)):
+    if host != 'localhost' and not (validators.domain(host) or validators.ipv4(host)):
         error('SOCKS5 proxy host "{}" is not valid.'.format(host))
 
         sys.exit(1)
@@ -132,6 +132,7 @@ def test_login(account, domain, password, imap, port, ssl, timeout, socks5_proxy
         return ret
     except Exception as ex:
         if verbose:
+            #print("An exception of type {0} occurred. Arguments:\n{1!r}".format(type(ex).__name__, ex.args))
             error(ex)
 
         return ret
