@@ -25,4 +25,4 @@ optional arguments:
 
 **Preview:**
 
-<a href="https://ibb.co/QCqn0Q2"><img src="https://i.ibb.co/vQrm9q7/Screenshot-from-2020-12-19-07-46-42.png" alt="Screenshot-from-2020-12-19-07-46-42" border="0"></a>
+<a href="https://ibb.co/sF9BHDX"><img src="https://i.ibb.co/jLkpRxj/Screenshot-from-2021-05-14-10-17-53.png" alt="IMAPLoginTester screenshot" border="0"></a>
