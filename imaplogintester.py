@@ -201,7 +201,7 @@ def main():
                         port = config[domain]['port']
                         ssl = config[domain]['ssl']
 
-                        loggedin = test_login(account, domain, password, imap, port, ssl, timeout, socks5_proxy, verbose)
+                        loggedin = test_login(account, domain, password, imap, port, ssl, int(timeout), socks5_proxy, verbose)
 
                         if show_successes:
                             if loggedin:
