@@ -70,7 +70,7 @@ def result(email, password, success, output_file):
 
     print("E-Mail: {} | Password: {} | Login: {}".format(eml, pwd, res))
 
-    if result and output_file is not None:
+    if success and output_file is not None:
         print(email + ':' + password, file = output_file)
 
 def split_host_port(hostport):
