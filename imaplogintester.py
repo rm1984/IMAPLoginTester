@@ -141,7 +141,7 @@ def main():
     parser = argparse.ArgumentParser(prog = 'imaplogintester.py')
     parser.add_argument('-i', '--input', help = 'input file with e-mails and passwords', required = True)
     parser.add_argument('-o', '--output', help = 'save successes to output file', required = False)
-    parser.add_argument('-s', '--show-successes', help = 'show successes only (no failures)', required = False, action = 'store_true', default = None)
+    parser.add_argument('-s', '--show-successes', help = 'show successes only (no failures and no warnings/errors)', required = False, action = 'store_true', default = None)
     parser.add_argument('-t', '--sleep-time', help = 'set sleep time between tests (in seconds)', required = False)
     parser.add_argument('-T', '--timeout', help = 'set login requests timeout (in seconds)', required = False)
     parser.add_argument('-P', '--socks5-proxy', help = 'use a SOCKS5 proxy (eg: "localhost:9050")', required = False)
@@ -156,6 +156,10 @@ def main():
     timeout = args.timeout or 3 # default value is 3 seconds
     socks5_proxy = args.socks5_proxy
     verbose = args.verbose
+
+    print()
+    print(u'\u2709', 'IMAPLoginTester', u'\u2709')
+    print()
 
     check_for_file(emails_file)
     check_for_file(config_file)
@@ -216,17 +220,19 @@ def main():
 
                         time.sleep(int(sleep_time))
                     else:
-                        warning('Missing config section for domain: {}'.format(yellow(domain)))
+                        if not show_successes:
+                            warning('Missing config section for domain: {}'.format(yellow(domain)))
                 else:
-                    error('Invalid e-mail: {}'.format(yellow(email)))
+                    if not show_successes:
+                        error('Invalid e-mail: {}'.format(yellow(email)))
             except IndexError:
-                error('Wrong format for row: {}'.format(yellow(row.strip())))
-
-    print()
+                if not show_successes:
+                    error('Wrong format for row: {}'.format(yellow(row.strip())))
 
     if count_ok == 0:
         print('Working logins: ' + red(count_ok) + '/' + str(count_all))
     else:
+        print()
         print('Working logins: ' + green(count_ok) + '/' + str(count_all))
 
     if (output_file is not None and output_file_handle is not None):
